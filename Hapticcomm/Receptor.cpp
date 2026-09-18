@@ -1,24 +1,29 @@
 #include "receptor.h"
-#if !defined(MODO_TRANSMISSOR)
+#if !defined(MODO_TRANSMISSOR) && !defined(MODO_ESP_AUDIO)
 
 #include "config.h"
 #include "message.h"
 #include "comms.h"
 #include <esp_now.h>
 
-// Estado interno do receptor
-static unsigned long tempoDesligarMotor = 0;
-static bool motorRodando = false;
+// Estado interno do receptor de vibracao
+static bool modoPulso = false;             // true quando em estado de STOP
+static uint8_t intensidadePulso = 0;       // intensidade usada durante o pulso
+static bool pulsoLigado = false;
+static unsigned long tempoUltimoPulso = 0;
 static uint8_t contadorPacotes = 0;
+
+// Cadencia do pulso no estado de STOP (liga/desliga)
+const unsigned long INTERVALO_PULSO = 250; // ms
 
 void receptorSetup() {
   pinMode(pinoPWM, OUTPUT);
   analogWrite(pinoPWM, 0);
 
   #ifdef MODO_RECEPTOR_DIREITO
-    Serial.println("Iniciado como: RECEPTOR DIREITO (V2)");
+    Serial.println("Iniciado como: RECEPTOR DIREITO (V3) - so vibracao");
   #elif defined(MODO_RECEPTOR_ESQUERDO)
-    Serial.println("Iniciado como: RECEPTOR ESQUERDO (V2)");
+    Serial.println("Iniciado como: RECEPTOR ESQUERDO (V3) - so vibracao");
   #endif
 }
 
@@ -27,34 +32,45 @@ void receptorProcessarPacote(const uint8_t *mac, const uint8_t *incomingData, in
 
   memcpy(&data, incomingData, sizeof(data));
 
-  // Filtra se a mensagem é destinada a esta placa
+  // Seleciona a intensidade do lado desta placa (audio e ignorado aqui)
   #ifdef MODO_RECEPTOR_DIREITO
-    if (!data.ladoDireito) return;
+    uint8_t minhaIntensidade = data.intensidadeDireita;
   #elif defined(MODO_RECEPTOR_ESQUERDO)
-    if (!data.ladoEsquerdo) return;
+    uint8_t minhaIntensidade = data.intensidadeEsquerda;
+  #else
+    uint8_t minhaIntensidade = 0;
   #endif
 
-  contadorPacotes++;
+  switch (data.tipoMensagem) {
+    case MSG_START:
+      // Sai do modo pulso e desliga o motor: rede ativa
+      modoPulso = false;
+      analogWrite(pinoPWM, 0);
+      Serial.println("START recebido -> rede ativa, saindo do modo STOP.");
+      break;
 
-  Serial.printf("Pacote %d/%d recebido -> Vibracao: 0x%02X (%d/255), Duracao: %d ms, Audio: %d (Pasta: 0x%02X, Faixa: 0x%04X [%d])\n",
-                contadorPacotes, PACOTES_PARA_ACK, data.intensidadeVibracao, data.intensidadeVibracao, data.duracao,
-                data.audioAtivo, data.pastaAudio, data.arquivoAudio, data.arquivoAudio);
+    case MSG_DADOS:
+      // Operacao normal: aplica a intensidade do lado (0 = parado)
+      modoPulso = false;
+      analogWrite(pinoPWM, minhaIntensidade);
+      Serial.printf("DADOS -> Vibracao: %d/255\n", minhaIntensidade);
+      break;
 
-  // Aciona o motor de vibração a cada pacote
-  analogWrite(pinoPWM, data.intensidadeVibracao);
-  tempoDesligarMotor = millis() + data.duracao;
-  motorRodando = true;
+    case MSG_STOP:
+      // Perda de conexao: entra em vibracao por pulso (feita no loop)
+      modoPulso = true;
+      intensidadePulso = (minhaIntensidade > 0) ? minhaIntensidade : 200;
+      Serial.println("STOP -> vibracao em pulso.");
+      break;
 
-  // Execução de áudio (se ativado)
-  if (data.audioAtivo == 1) {
-    // Espaço reservado para acionamento do módulo de áudio (ex: DFPlayer Mini)
-    // myDFPlayer.playFolder(data.pastaAudio, data.arquivoAudio);
+    default:
+      return; // tipo desconhecido: ignora
   }
 
-  // Registra o peer na primeira vez
+  // Monitoramento de conexao: responde ACK periodicamente
+  contadorPacotes++;
   commsRegistrarPeer(mac);
 
-  // Só envia ACK a cada N pacotes
   if (contadorPacotes >= PACOTES_PARA_ACK) {
     contadorPacotes = 0;
 
@@ -76,11 +92,14 @@ void receptorProcessarPacote(const uint8_t *mac, const uint8_t *incomingData, in
 }
 
 void receptorLoop() {
-  if (motorRodando && millis() > tempoDesligarMotor) {
-    analogWrite(pinoPWM, 0);
-    motorRodando = false;
-    Serial.println("Tempo finalizado: Motor de vibracao desligado.");
+  // Gera o pulso enquanto estiver em estado de STOP
+  if (modoPulso) {
+    if (millis() - tempoUltimoPulso > INTERVALO_PULSO) {
+      tempoUltimoPulso = millis();
+      pulsoLigado = !pulsoLigado;
+      analogWrite(pinoPWM, pulsoLigado ? intensidadePulso : 0);
+    }
   }
 }
 
-#endif // !MODO_TRANSMISSOR
+#endif // !MODO_TRANSMISSOR && !MODO_ESP_AUDIO

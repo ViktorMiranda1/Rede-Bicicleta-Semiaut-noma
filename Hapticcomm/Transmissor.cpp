@@ -10,6 +10,10 @@ static bool ackRecebidoR = false;
 static bool ackRecebidoL = false;
 static bool erroConexao  = false;
 
+// Guarda qual lado falhou para escolher o audio de alerta no STOP
+static bool falhaR = false;
+static bool falhaL = false;
+
 static unsigned long tempoUltimoComando = 0;
 static unsigned long tempoUltimoEnvio   = 0;
 
@@ -18,10 +22,24 @@ static bool estadoLed = LOW;
 
 static uint8_t pacotesEnviados = 0;
 
+// Envia um pacote de controle START (inicia a rede / sai do STOP)
+static void enviarStart() {
+  data.tipoMensagem        = MSG_START;
+  data.intensidadeDireita  = 0;
+  data.intensidadeEsquerda = 0;
+  data.pastaAudio          = 0;
+  data.arquivoAudio        = 0;
+  esp_now_send(broadcastAddress, (uint8_t *) &data, sizeof(data));
+}
+
 void transmissorSetup() {
   pinMode(PINO_LED, OUTPUT);
   digitalWrite(PINO_LED, LOW);
-  Serial.println("Iniciado como: TRANSMISSOR (V2)");
+  Serial.println("Iniciado como: TRANSMISSOR (V3)");
+
+  // Anuncia o inicio da rede
+  enviarStart();
+  Serial.println("Comando START enviado (rede iniciada).");
 }
 
 void transmissorProcessarACK(const uint8_t *mac, const uint8_t *incomingData, int len) {
@@ -41,48 +59,71 @@ void transmissorProcessarACK(const uint8_t *mac, const uint8_t *incomingData, in
 
 void transmissorLoop() {
   if (millis() - tempoUltimoComando > INTERVALO_ENVIO || tempoUltimoComando == 0) {
-    // Configura os dados do comando V2
-    data.audioAtivo          = 0;     // 0 = Desligado (ou 1 se ainda quiser o áudio)
-    data.intensidadeVibracao = 128;   // Intensidade média (~50% do PWM de 0 a 255)
-    data.duracao             = 5;     // Duração: 5 ms
-    data.ladoDireito         = true;  // Envia para o receptor direito
-    data.ladoEsquerdo        = true;  // Envia para o receptor esquerdo
-    data.pastaAudio          = 0x01;
-    data.arquivoAudio        = 0x012C;
+
+    if (erroConexao) {
+      // Estado de STOP: pulso em ambos os lados + audio de perda de conexao.
+      // O audio e escolhido pela TABELA_AUDIOS conforme o lado que caiu.
+      AudioID alerta;
+      if (falhaR && falhaL)      alerta = AUDIO_PERDA_AMBOS;
+      else if (falhaR)           alerta = AUDIO_PERDA_DIREITA;
+      else                       alerta = AUDIO_PERDA_ESQUERDA;
+
+      data.tipoMensagem        = MSG_STOP;
+      data.intensidadeDireita  = 200;   // nivel usado no pulso
+      data.intensidadeEsquerda = 200;
+      data.pastaAudio          = AUDIO_PASTA(alerta);
+      data.arquivoAudio        = AUDIO_ARQUIVO(alerta);
+    } else {
+      // Operacao normal: mensagem de dados
+      data.tipoMensagem        = MSG_DADOS;
+      data.intensidadeDireita  = 128;   // ~50% do PWM no lado direito
+      data.intensidadeEsquerda = 128;   // ~50% do PWM no lado esquerdo
+      data.pastaAudio          = 0;     // 0 = sem audio
+      data.arquivoAudio        = 0;
+    }
 
     esp_now_send(broadcastAddress, (uint8_t *) &data, sizeof(data));
 
     pacotesEnviados++;
     tempoUltimoComando = millis();
 
-    Serial.printf("Pacote %d enviado (Vib: 0x%02X, Dur: %d ms, Aud: %d [P:0x%02X, A:0x%04X (%d)], Lados: R=%d L=%d)\n",
-                  pacotesEnviados, data.intensidadeVibracao, data.duracao,
-                  data.audioAtivo, data.pastaAudio, data.arquivoAudio, data.arquivoAudio,
-                  data.ladoDireito, data.ladoEsquerdo);
+    Serial.printf("Pacote %d enviado (Tipo: 0x%02X | Dir: %d | Esq: %d | Audio P:%d A:%d)\n",
+                  pacotesEnviados, data.tipoMensagem,
+                  data.intensidadeDireita, data.intensidadeEsquerda,
+                  data.pastaAudio, data.arquivoAudio);
 
-    // Só verifica ACK a cada ciclo de pacotes enviados
+    // So verifica ACK a cada ciclo de pacotes enviados
     if (pacotesEnviados >= PACOTES_POR_CICLO) {
       pacotesEnviados = 0;
       tempoUltimoEnvio = millis();
 
       ackRecebidoR = false;
       ackRecebidoL = false;
-      erroConexao  = false;
     }
   }
 
-  // Verifica timeout só após o ciclo (apenas para os lados requisitados)
-  if (!erroConexao && tempoUltimoEnvio > 0 && (millis() - tempoUltimoEnvio > TIMEOUT_ACK)) {
-    bool falhaR = data.ladoDireito  && !ackRecebidoR;
-    bool falhaL = data.ladoEsquerdo && !ackRecebidoL;
+  // Avalia os ACKs apos o ciclo
+  if (tempoUltimoEnvio > 0 && (millis() - tempoUltimoEnvio > TIMEOUT_ACK)) {
+    falhaR = !ackRecebidoR;
+    falhaL = !ackRecebidoL;
+    bool houveFalha = falhaR || falhaL;
 
-    if (falhaR || falhaL) {
+    if (houveFalha && !erroConexao) {
+      // Entra em modo STOP
       erroConexao = true;
-      Serial.println("!!! ALERTA DE DESCONEXAO !!! Timeout excedido apos o ciclo de pacotes.");
+      Serial.println("!!! ALERTA DE DESCONEXAO !!! -> entrando em modo STOP.");
       if (falhaR) Serial.println(" -> Radio DIREITO (R) nao respondeu.");
       if (falhaL) Serial.println(" -> Radio ESQUERDO (L) nao respondeu.");
+    } else if (!houveFalha && erroConexao) {
+      // Conexao restabelecida -> sai do STOP e reinicia a rede
+      erroConexao = false;
+      falhaR = false;
+      falhaL = false;
+      enviarStart();
+      Serial.println(">>> Conexao restabelecida: comando START reenviado.");
     }
-    tempoUltimoEnvio = 0; // Reseta para não ficar disparando o alerta
+
+    tempoUltimoEnvio = 0; // Reseta para nao ficar reavaliando o mesmo ciclo
   }
 
   // LED de status
