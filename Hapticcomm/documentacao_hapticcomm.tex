@@ -1,0 +1,676 @@
+\documentclass[12pt,a4paper]{article}
+
+% ==============================================================================
+% PACOTES ESSENCIAIS E CONFIGURAÇÕES REGIONAIS
+% ==============================================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\geometry{a4paper, left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, shapes.misc, fit, calc, backgrounds}
+
+% ==============================================================================
+% CONFIGURAÇÃO DE CORES E HYPERLINKS
+% ==============================================================================
+\definecolor{primaryDark}{RGB}{18, 52, 86}
+\definecolor{primaryBlue}{RGB}{41, 128, 185}
+\definecolor{accentOrange}{RGB}{211, 84, 0}
+\definecolor{accentGreen}{RGB}{39, 174, 96}
+\definecolor{accentRed}{RGB}{192, 57, 43}
+\definecolor{codeBg}{RGB}{248, 249, 250}
+\definecolor{codeFrame}{RGB}{220, 224, 230}
+\definecolor{codeComment}{RGB}{108, 117, 125}
+\definecolor{codeKeyword}{RGB}{13, 110, 253}
+\definecolor{codeString}{RGB}{25, 135, 84}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primaryDark,
+    citecolor=primaryBlue,
+    urlcolor=primaryBlue,
+    pdfauthor={Rede Bicicleta Semi-Autônoma},
+    pdftitle={Rede Bicicleta Semi-Autônoma},
+    pdfsubject={Análise de Código e Fluxos de Comunicação},
+    pdfkeywords={ESP-NOW, Haptic, Bicicleta Semi-Autônoma, Deficiência Visual, IoT, Sistemas Embarcados}
+}
+
+% ==============================================================================
+% CONFIGURAÇÃO DO LISTINGS (CÓDIGO FONTE)
+% ==============================================================================
+\usepackage{listings}
+\lstset{
+    backgroundcolor=\color{codeBg},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    captionpos=b,
+    commentstyle=\color{codeComment}\textit,
+    frame=single,
+    rulecolor=\color{codeFrame},
+    keywordstyle=\color{codeKeyword}\textbf,
+    stringstyle=\color{codeString},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=8pt,
+    tabsize=2,
+    showstringspaces=false,
+    language=C++,
+    literate=
+        {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+        {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
+        {à}{{\`a}}1 {è}{{\`e}}1 {ì}{{\`i}}1 {ò}{{\`o}}1 {ù}{{\`u}}1
+        {ã}{{\~a}}1 {õ}{{\~o}}1 {Ã}{{\~A}}1 {Õ}{{\~O}}1
+        {ç}{{\c{c}}}1 {Ç}{{\c{C}}}1 {ê}{{\^e}}1 {ô}{{\^o}}1
+}
+
+% ==============================================================================
+% CABEÇALHOS E RODAPÉS
+% ==============================================================================
+\pagestyle{fancy}
+\setlength{\headheight}{15pt}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{gray}{Rede Bicicleta Semi-Autônoma}}
+\fancyhead[R]{\small\textcolor{gray}{Documentação de Software e Arquitetura}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% ==============================================================================
+% INÍCIO DO DOCUMENTO
+% ==============================================================================
+\begin{document}
+\shorthandoff{"}
+
+\begin{titlepage}
+    \centering
+    \vspace*{1.5cm}
+    {\Huge \textbf{\textcolor{primaryDark}{Rede Bicicleta Semi-Autônoma}}}\\[0.4cm]
+    {\Large \textbf{Subsistema de Comunicação Sem Fio e Realimentação Multissensorial para Deficientes Visuais}}\\[1.5cm]
+    
+    \begin{tikzpicture}
+        \draw[line width=2pt, color=primaryBlue] (0,0) -- (14,0);
+    \end{tikzpicture}
+    \\[1.5cm]
+
+    \textbf{Lara Trabachini, Viktor Miranda e Vinícius César Bertolo Calligaris}\\[2.5cm]
+
+    \begin{minipage}{0.85\textwidth}
+        \large
+        \textbf{Resumo Executivo:}\\
+        Este documento apresenta a análise técnica detalhada dos 12 arquivos de código-fonte que constituem o projeto \textit{Rede Bicicleta Semi-Autônoma}. O sistema implementa uma rede veicular sem fio ad-hoc baseada em microcontroladores ESP32 e no protocolo de camada de enlace ESP-NOW. Desenvolvido para guiar ciclistas com deficiência visual em uma bicicleta semi-autônoma, o software coordena o envio contínuo de sinais de navegação com realimentação tátil em ambas as manoplas do guidão e comandos de voz via síntese de áudio dedicada (DFPlayer Mini). São detalhados todos os componentes de software, estruturas de dados, máquinas de estado, mecanismos de fail-safe e tolerância a falhas, além do fluxo bidirecional de mensagens entre nós.
+    \end{minipage}
+
+    \vfill
+    {\large \textbf{Faculdade de Tecnologia da UNICAMP}}\\
+    {\large  Setembro de 2026}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ==============================================================================
+% SEÇÃO 1: INTRODUÇÃO E VISÃO GERAL
+% ==============================================================================
+\section{Introdução e Contexto do Projeto}
+
+O projeto da \textbf{Rede Bicicleta Semi-Autônoma} propõe uma tecnologia assistiva inovadora voltada a devolver a autonomia e a prática esportiva segura para pessoas com deficiência visual (DV). Em veículos convencionais, a percepção sensorial do ambiente baseia-se prioritariamente no canal óptico. Na ausência da visão, faz-se estritamente necessário substituir e complementar o canal visual por canais sensoriais remanescentes de alta fidelidade: o \textbf{sistema tátil/háptico} (nas mãos do ciclista) e o \textbf{sistema auditivo} (áudio binaural/direcional).
+
+O diretório \texttt{Hapticcomm} reúne o conjunto completo de arquivos em C++/Arduino responsáveis pela camada de comunicação sem fio, atuadores de vibração (motores excêntricos acionados via PWM) e geração de comandos sonoros por voz gravada.
+
+\subsection{Desafios e Requisitos Críticos de Projeto}
+A condução de uma bicicleta em velocidades típicas (10 a 25\,km/h) impõe restrições severas de latência, confiabilidade e segurança operacional (\textit{safety-critical}):
+\begin{enumerate}
+    \item \textbf{Latência Ultrabaixa:} Instruções de correção de rota e alertas de obstáculos iminentes devem atingir os atuadores com atraso inferior a dezenas de milissegundos.
+    \item \textbf{Imunidade a Cabeamento Móvel:} O guidão da bicicleta realiza giros contínuos. A passagem de cabos físicos entre a unidade de processamento central (frequentemente alojada no quadro) e as manoplas/áudio sofre com fadiga mecânica, risco de rompimento e limitações ergonômicas. Daí a necessidade de uma rede sem fio local distribuída.
+    \item \textbf{Mecanismo Fail-Safe (Parada Segura):} Se a comunicação com qualquer uma das manoplas for interrompida (por interferência de RF, perda de bateria ou dano físico), o usuário \textbf{não pode} continuar pedalando sem aviso. O sistema deve detectar a perda imediatamente (tempo $\le 300$\,ms), sinalizar o erro por vibração pulsada de emergência e emitir um áudio explícito localizando a falha.
+\end{enumerate}
+
+\subsection{Topologia da Rede Embarcada}
+A arquitetura de hardware distribui quatro microcontroladores ESP32 em pontos estratégicos da bicicleta:
+\begin{itemize}
+    \item \textbf{Nó Transmissor (Mestre):} Instalado na unidade central de processamento da bicicleta. Lê dados do sistema de percepção (câmeras, LIDAR, GNSS/IMU) e traduz as decisões em pacotes de navegação e alertas.
+    \item \textbf{Nó Receptor Direito (Escravo Háptico):} Instalado na manopla direita do guidão. Controla o atuador vibratório direito via PWM.
+    \item \textbf{Nó Receptor Esquerdo (Escravo Háptico):} Instalado na manopla esquerda do guidão. Controla o atuador vibratório esquerdo via PWM.
+    \item \textbf{Nó Receptor de Áudio (Escravo Acústico):} Conectado ao módulo DFPlayer Mini e autofalante/fones de ouvido, emitindo alertas vocais contextualizados.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=2.5cm and 3cm,
+        master/.style={rectangle, rounded corners=6pt, draw=primaryDark, fill=primaryDark!10, line width=1.5pt, minimum width=4cm, minimum height=1.6cm, align=center, font=\bfseries\small},
+        slaveHaptic/.style={rectangle, rounded corners=6pt, draw=accentOrange, fill=accentOrange!10, line width=1.3pt, minimum width=3.4cm, minimum height=1.5cm, align=center, font=\bfseries\small},
+        slaveAudio/.style={rectangle, rounded corners=6pt, draw=accentGreen, fill=accentGreen!10, line width=1.3pt, minimum width=3.4cm, minimum height=1.5cm, align=center, font=\bfseries\small},
+        connBroadcast/.style={->, line width=1.5pt, primaryBlue, dashed},
+        connAck/.style={<-, line width=1.3pt, accentRed}
+    ]
+        % Master Node
+        \node[master] (transmissor) {NÓ TRANSMISSOR\\(ESP32 Mestre)\\Processamento Central};
+        
+        % Slave Nodes
+        \node[slaveHaptic, above right=1.2cm and 2.5cm of transmissor] (recDir) {RECEPTOR DIREITO\\(ESP32 Escravo)\\Manopla Direita / PWM};
+        \node[slaveHaptic, below right=1.2cm and 2.5cm of transmissor] (recEsq) {RECEPTOR ESQUERDO\\(ESP32 Escravo)\\Manopla Esquerda / PWM};
+        \node[slaveAudio, right=3.2cm of transmissor] (recAudio) {ESP ÁUDIO\\(ESP32 Escravo)\\DFPlayer Mini / Voz};
+
+        % Conexões
+        \draw[connBroadcast] (transmissor.north east) -- node[above, sloped, font=\scriptsize\color{primaryBlue}] {Broadcast ESP-NOW (50\,Hz)} (recDir.west);
+        \draw[connBroadcast] (transmissor.east) -- node[above, font=\scriptsize\color{primaryBlue}] {Broadcast ESP-NOW} (recAudio.west);
+        \draw[connBroadcast] (transmissor.south east) -- node[below, sloped, font=\scriptsize\color{primaryBlue}] {Broadcast ESP-NOW (50\,Hz)} (recEsq.west);
+
+        % Retornos de ACK
+        \draw[connAck] (transmissor.15) -- node[below, sloped, font=\scriptsize\color{accentRed}] {Unicast: ACK R} (recDir.200);
+        \draw[connAck] (transmissor.345) -- node[above, sloped, font=\scriptsize\color{accentRed}] {Unicast: ACK L} (recEsq.160);
+
+    \end{tikzpicture}
+    \caption{Topologia em estrela da rede sem fio baseada em ESP-NOW com envio por difusão (broadcast) e confirmação seletiva por unicast.}
+    \label{fig:topologia_rede}
+\end{figure}
+
+\newpage
+% ==============================================================================
+% SEÇÃO 2: ANÁLISE INDIVIDUAL DOS ARQUIVOS
+% ==============================================================================
+\section{Análise Individual dos Arquivos da Pasta Hapticcomm}
+
+A biblioteca é estruturada em 12 arquivos modulares em C++ e cabeçalhos (\texttt{.h}, \texttt{.cpp} e \texttt{.ino}). O design de software adota o padrão de \textbf{código unificado multi-alvo}: o mesmo repositório atende a todas as 4 placas da bicicleta, onde a definição do papel de cada placa é realizada no cabeçalho de configuração por compilação condicional (\textit{preprocessor macros}).
+
+A seguir, analisa-se cada arquivo em detalhes.
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Config.h} --- Parâmetros Globais e Seleção de Modo}
+\textbf{Finalidade:} Atua como a fonte única da verdade (\textit{single source of truth}) para o hardware e a configuração de compilação da rede.
+
+\begin{itemize}
+    \item \textbf{Seleção de Papel do Nó:} Através de diretivas de pré-processador exclusivas (linhas 10 a 13), o desenvolvedor descomenta apenas a placa que está sendo gravada:
+    \begin{itemize}
+        \item \texttt{MODO\_TRANSMISSOR}: Compila a lógica de controle mestre.
+        \item \texttt{MODO\_RECEPTOR\_DIREITO}: Compila o nó da manopla direita.
+        \item \texttt{MODO\_RECEPTOR\_ESQUERDO}: Compila o nó da manopla esquerda.
+        \item \texttt{MODO\_ESP\_AUDIO}: Compila o nó de geração de áudio.
+    \end{itemize}
+    \item \textbf{Mapeamento de Pinos Físicos:}
+    \begin{itemize}
+        \item \texttt{pinoPWM = 18}: Pino de saída PWM ligado ao circuito de potência (MOSFET/Driver) do motor de vibração dos receptores táteis.
+        \item \texttt{PINO\_LED = 2}: LED onboard do transmissor, utilizado como indicador de status e sinalizador de emergência.
+        \item \texttt{PINO\_DFPLAYER\_RX = 16} e \texttt{PINO\_DFPLAYER\_TX = 17}: Pinos da interface serial UART2 do ESP32 para comunicação com o DFPlayer Mini.
+    \end{itemize}
+    \item \textbf{Temporizações e Parâmetros da Rede:}
+    \begin{itemize}
+        \item \texttt{INTERVALO\_ENVIO = 20} ms: Período de emissão de pacotes pelo transmissor (equivalente a 50\,Hz).
+        \item \texttt{PACOTES\_POR\_CICLO = 5}: Define a janela de observação. A cada 5 transmissões (100\,ms), o transmissor audita se os nós escravos responderam.
+        \item \texttt{TIMEOUT\_ACK = 300} ms: Limite máximo tolerado sem resposta de confirmação dos receptores antes de declarar queda de link e transitar para estado de emergência (\texttt{MSG\_STOP}).
+        \item \texttt{PACOTES\_PARA\_ACK = 5}: Contador interno nos receptores táteis. A cada 5 pacotes recebidos com sucesso, o receptor envia uma mensagem de confirmação de volta ao mestre.
+        \item \texttt{VOLUME\_AUDIO = 25}: Ganho configurado para o módulo de áudio (escala de 0 a 30).
+    \end{itemize}
+\end{itemize}
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Message.h} --- Protocolo da Camada de Aplicação}
+\textbf{Finalidade:} Define a sintaxe e a semântica dos pacotes transmitidos pelo canal sem fio.
+
+O protocolo de mensagens utiliza uma estrutura compacta binária serializada, garantida sem preenchimento de bytes adicionais pela diretiva de compilação \texttt{\_\_attribute\_\_((packed))}. O tamanho total do payload é de \textbf{exatamente 5 bytes}:
+
+\begin{table}[H]
+    \centering
+    \caption{Estrutura de dados binária serializada (\texttt{struct\_message})}
+    \label{tab:protocolo_mensagem}
+    \begin{tabularx}{\textwidth}{lccX}
+        \toprule
+        \textbf{Campo} & \textbf{Tipo} & \textbf{Tamanho} & \textbf{Descrição Funcional} \\
+        \midrule
+        \texttt{tipoMensagem} & \texttt{uint8\_t} & 1 byte & Identificador do estado do protocolo: \newline
+        $\bullet$ \texttt{0x00} (\texttt{MSG\_START}): Inicialização de rede / reset de falha. \newline
+        $\bullet$ \texttt{0x01} (\texttt{MSG\_DADOS}): Operação normal de condução. \newline
+        $\bullet$ \texttt{0x02} (\texttt{MSG\_STOP}): Alerta crítico de desconexão. \\
+        \texttt{intensidadeDireita} & \texttt{uint8\_t} & 1 byte & Ciclo de trabalho (PWM) da manopla direita (0 a 255). \\
+        \texttt{intensidadeEsquerda} & \texttt{uint8\_t} & 1 byte & Ciclo de trabalho (PWM) da manopla esquerda (0 a 255). \\
+        \texttt{pastaAudio} & \texttt{uint8\_t} & 1 byte & Índice numérico da pasta no cartão SD do DFPlayer (0 = sem áudio). \\
+        \texttt{arquivoAudio} & \texttt{uint8\_t} & 1 byte & Índice numérico da faixa de áudio na pasta (0 = sem áudio). \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\textbf{Vantagem Arquitetural:} Com apenas 5 bytes de dados úteis, o tempo de transmissão em ar (\textit{airtime}) no rádio 802.11 é minimizado para menos de alguns microssegundos, reduzindo a quase zero a probabilidade de colisões na banda ISM de 2.4\,GHz.
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Audios.h} --- Tabela Semântica e Mapeamento de Voz}
+\textbf{Finalidade:} Fornece uma camada de abstração entre as mensagens de navegação/segurança e os arquivos de som gravados no cartão micro-SD do DFPlayer Mini.
+
+\begin{itemize}
+    \item \textbf{Estrutura \texttt{AudioRef}:} Agrupa um par de inteiros \texttt{\{pasta, arquivo\}}.
+    \item \textbf{Enumeração \texttt{AudioID}:} Define mnemônicos legíveis organizados por domínios:
+    \begin{itemize}
+        \item \textit{Sistema e Conexão (Pasta 1):} Perda de conexão à direita, à esquerda ou em ambos os lados, sistema pronto, bateria fraca.
+        \item \textit{Navegação (Pasta 2):} Virar à direita, virar à esquerda, seguir em frente, reduzir velocidade, destino atingido.
+        \item \textit{Detecção de Obstáculos (Pasta 3):} Obstáculo à frente, à direita ou à esquerda.
+    \end{itemize}
+    \item \textbf{Array Constante \texttt{TABELA\_AUDIOS}:} Mapeia diretamente cada membro de \texttt{AudioID} para o respectivo diretório e arquivo físico.
+    \item \textbf{Macros de Consulta Rápida:} \texttt{AUDIO\_PASTA(id)} e \texttt{AUDIO\_ARQUIVO(id)} permitem indexar a tabela em tempo de compilação/execução com eficiência de ponteiro direto.
+\end{itemize}
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Comms.h} --- Interface da Camada de Comunicação}
+\textbf{Finalidade:} Declara os protótipos de funções responsáveis pela inicialização da pilha sem fio ESP-NOW e pelas rotinas de manipulação de peers e eventos de recepção.
+
+Contém as seguintes declarações fundamentais:
+\begin{lstlisting}
+bool commsInit();
+void commsRegistrarPeer(const uint8_t *mac);
+void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingData, int len);
+\end{lstlisting}
+Destaca-se o uso do tipo \lstinline|esp_now_recv_info_t|, compatível com o core ESP32 v3.x, garantindo acesso direto ao endereço MAC do transmissor (\lstinline|recv_info->src_addr|).
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Comms.cpp} --- Implementação do Protocolo ESP-NOW}
+\textbf{Finalidade:} Implementa as funções declaradas em \texttt{Comms.h}, configurando o hardware Wi-Fi no modo Station (\texttt{WIFI\_STA}) e orquestrando o roteamento de pacotes recebidos.
+
+\begin{itemize}
+    \item \textbf{Definição do Endereço de Broadcast:} Instancia \texttt{broadcastAddress = \{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF\}}, permitindo que o transmissor alcance todos os nós simultaneamente sem necessidade de pareamento prévio em cada envio.
+    \item \textbf{Função \texttt{commsInit()}:}
+    \begin{enumerate}
+        \item Coloca o Wi-Fi em modo Station (desligando o modo Access Point para economizar energia e evitar interferências).
+        \item Inicializa a biblioteca ESP-NOW (\texttt{esp\_now\_init()}).
+        \item Registra o endereço de difusão geral (Broadcast) na tabela interna de peers da ESP32 com canal 0 e sem criptografia.
+        \item Registra a função de callback \texttt{OnDataRecv}.
+    \end{enumerate}
+    \item \textbf{Registro Dinâmico de Peers (\texttt{commsRegistrarPeer}):} Verifica se o MAC da estação remota já existe na tabela de peers (\texttt{esp\_now\_is\_peer\_exist}). Caso não exista, adiciona o MAC como peer unicast. Isso permite que um receptor responda diretamente ao transmissor sem que seu endereço MAC precisasse ser fixado em código (\textit{hardcoded}).
+    \item \textbf{Despachante Polimórfico (\texttt{OnDataRecv}):} O callback universal inspeciona as macros de compilação e despacha os dados brutos recebidos para o tratador correto do papel específico da placa compilada:
+    \begin{itemize}
+        \item Se \texttt{MODO\_TRANSMISSOR}: Invoca \texttt{transmissorProcessarACK(mac, incomingData, len)}.
+        \item Se \texttt{MODO\_ESP\_AUDIO}: Invoca \texttt{espAudioProcessarPacote(mac, incomingData, len)}.
+        \item Caso contrário (Receptores Táteis): Invoca \texttt{receptorProcessarPacote(mac, incomingData, len)}.
+    \end{itemize}
+\end{itemize}
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Hapticcomm.ino} --- Ponto de Entrada da Aplicação}
+\textbf{Finalidade:} Constitui o arquivo principal da aplicação no ecossistema Arduino/ESP32, contendo as funções \texttt{setup()} e \texttt{loop()}.
+
+\begin{itemize}
+    \item \textbf{Rotina \texttt{setup()}:}
+    \begin{enumerate}
+        \item Inicializa a comunicação serial com taxa de 115200 bauds para depuração.
+        \item Aplica um atraso (\texttt{delay(1000)}) para estabilização de hardware e alimentação.
+        \item Inicializa a pilha de comunicação invocando \texttt{commsInit()}.
+        \item Redireciona a inicialização de hardware específica via macros para \texttt{transmissorSetup()} ou \texttt{receptorSetup()}.
+    \end{enumerate}
+    \item \textbf{Rotina \texttt{loop()}:} Encaminha o ciclo de varredura contínuo para \texttt{transmissorLoop()} ou \texttt{receptorLoop()} (o nó de áudio é atendido por interrupção de recepção).
+\end{itemize}
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Transmissor.h} --- Interface do Nó Mestre}
+\textbf{Finalidade:} Declara os protótipos das funções que regem o comportamento da unidade transmissora mestre:
+\begin{lstlisting}
+void transmissorSetup();
+void transmissorLoop();
+void transmissorProcessarACK(const uint8_t *mac, const uint8_t *incomingData, int len);
+\end{lstlisting}
+Todo o arquivo é cercado pela proteção condicional \texttt{\#ifdef MODO\_TRANSMISSOR}.
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Transmissor.cpp} --- Lógica de Controle do Mestre e Fail-Safe}
+\textbf{Finalidade:} Implementa o cérebro da rede de comunicação, sendo responsável pela temporização dos envios, auditoria de conexão, máquina de estados de falha e recuperação automática.
+
+\begin{itemize}
+    \item \textbf{Variáveis de Estado:}
+    \begin{itemize}
+        \item \texttt{ackRecebidoR}, \texttt{ackRecebidoL}: Marcadores booleanos que registram a confirmação de recebimento pelos lados direito e esquerdo.
+        \item \texttt{erroConexao}, \texttt{falhaR}, \texttt{falhaL}: Flags que indicam falha geral ou falha específica em um dos rádios periféricos.
+        \item \texttt{pacotesEnviados}: Contador da janela móvel de transmissão.
+    \end{itemize}
+    \item \textbf{Procedimento \texttt{enviarStart()}:} Transmite um pacote de controle \texttt{MSG\_START} com intensidades e áudios zerados, utilizado tanto na energização da bicicleta quanto no instante de recuperação de uma falha prévia.
+    \item \textbf{Tratamento de Confirmações (\texttt{transmissorProcessarACK}):} Converte os dados recebidos em string e verifica o conteúdo:
+    \begin{itemize}
+        \item Se \texttt{"ACK R"}: Marca \texttt{ackRecebidoR = true}.
+        \item Se \texttt{"ACK L"}: Marca \texttt{ackRecebidoL = true}.
+    \end{itemize}
+    \item \textbf{Ciclo Contínuo (\texttt{transmissorLoop}):}
+    \begin{enumerate}
+        \item \textbf{Temporizador de Envio (20\,ms):} Emissão em alta frequência de mensagens no canal de broadcast. Em modo normal, envia \texttt{MSG\_DADOS} com PWM nominal (ex.: 128 / 50\%). Em modo de erro (\texttt{erroConexao = true}), força \texttt{MSG\_STOP} com PWM de pulso (200) e codifica o áudio de perda correspondente (\texttt{AUDIO\_PERDA\_DIREITA}, \texttt{AUDIO\_PERDA\_ESQUERDA} ou \texttt{AUDIO\_PERDA\_AMBOS}).
+        \item \textbf{Auditoria de Conexão por Janela:} A cada 5 pacotes transmitidos (100\,ms), inicia a contagem de timeout (\texttt{tempoUltimoEnvio = millis()}) e zera os flags de ACK.
+        \item \textbf{Avaliação de Timeout (300\,ms):} Caso transcorram mais de 300\,ms sem a chegada de ambos os ACKs, o mestre ativa \texttt{erroConexao = true}, identificando exatamente qual manopla falhou. Se a conexão for restabelecida no ciclo seguinte, o erro é cancelado e \texttt{enviarStart()} é invocado para reativar o sistema.
+        \item \textbf{Sinalização Visual de Emergência:} Em caso de erro, o LED onboard (pino 2) pisca em frequência rápida de 2.5\,Hz (período de alternância de 200\,ms).
+    \end{enumerate}
+\end{itemize}
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Receptor.h} --- Interface dos Nós Hápticos}
+\textbf{Finalidade:} Declara os protótipos de rotina para os nós atuadores instalados no guidão da bicicleta:
+\begin{lstlisting}
+void receptorSetup();
+void receptorLoop();
+void receptorProcessarPacote(const uint8_t *mac, const uint8_t *incomingData, int len);
+\end{lstlisting}
+O cabeçalho é ativo somente quando não é nem transmissor nem placa de áudio (\texttt{!MODO\_TRANSMISSOR \&\& !MODO\_ESP\_AUDIO}).
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Receptor.cpp} --- Atuação Háptica, Modulação e Resposta de ACK}
+\textbf{Finalidade:} Recebe as instruções de rádio, aplica a modulação de largura de pulso (PWM) no motor de vibração e monitora a periodicidade de recebimento para devolver o sinal de confirmação (ACK) ao mestre.
+
+\begin{itemize}
+    \item \textbf{Inicialização (\texttt{receptorSetup}):} Configura o pino 18 (\texttt{pinoPWM}) como saída digital modulada e garante nível zero na inicialização.
+    \item \textbf{Filtragem e Decodificação (\texttt{receptorProcessarPacote}):}
+    \begin{itemize}
+        \item Valida o comprimento do pacote recebido (\texttt{len == sizeof(struct\_message)}).
+        \item Copia o pacote para a estrutura global \texttt{data}.
+        \item \textbf{Filtragem de Canal:} Conforme a macro de compilação (\texttt{MODO\_RECEPTOR\_DIREITO} ou \texttt{MODO\_RECEPTOR\_ESQUERDO}), o nó extrai apenas \texttt{data.intensidadeDireita} ou \texttt{data.intensidadeEsquerda}, descartando dados de áudio e do lado oposto.
+    \end{itemize}
+    \item \textbf{Processamento dos Tipos de Mensagem:}
+    \begin{itemize}
+        \item \texttt{MSG\_START}: Cancela o modo de pulso e desliga a vibração.
+        \item \texttt{MSG\_DADOS}: Aplica a intensidade correspondente no motor via \texttt{analogWrite(pinoPWM, minhaIntensidade)}.
+        \item \texttt{MSG\_STOP}: Entra no estado de alerta \texttt{modoPulso = true}, fixando a intensidade em 200 para vibração intermitente.
+    \end{itemize}
+    \item \textbf{Geração de Pulso (\texttt{receptorLoop}):} Quando em \texttt{modoPulso}, o loop alterna a saída PWM entre ligado (intensidade 200) e desligado (0) a cada 250\,ms (efeito estroboscópico tátil), indicando alerta tátil inconfundível para o ciclista deficiente visual.
+    \item \textbf{Envio Periódico de ACK:} Incrementa \texttt{contadorPacotes}. A cada 5 pacotes recebidos (\texttt{PACOTES\_PARA\_ACK = 5}), registra o endereço MAC do transmissor e despacha uma mensagem unicast com o texto \texttt{"ACK R"} (se receptor direito) ou \texttt{"ACK L"} (se receptor esquerdo).
+\end{itemize}
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Espaudio.h} --- Interface do Nó de Áudio}
+\textbf{Finalidade:} Declara os métodos de inicialização, ciclo de monitoramento e tratamento de pacotes dedicados ao módulo acústico:
+\begin{lstlisting}
+void espAudioSetup();
+void espAudioLoop();
+void espAudioProcessarPacote(const uint8_t *mac, const uint8_t *incomingData, int len);
+\end{lstlisting}
+Condicionado exclusivamente à macro \texttt{MODO\_ESP\_AUDIO}.
+
+% ------------------------------------------------------------------------------
+\subsection{\texttt{Espaudio.cpp} --- Driver Acústico e Supressão de Rajada}
+\textbf{Finalidade:} Faz a interface física com o módulo reprodutor de MP3/WAV DFPlayer Mini via UART secundária da ESP32 e implementa um filtro temporal (\textit{anti-retriggering debounce}) indispensável para evitar engasgos de som causados pela alta taxa de repetição do transmissor.
+
+\begin{itemize}
+    \item \textbf{Comunicação UART com DFPlayer Mini:} Utiliza a instância \texttt{HardwareSerial dfSerial(2)} mapeada nos pinos 16 (RX da ESP32 $\leftarrow$ TX do módulo) e 17 (TX da ESP32 $\rightarrow$ RX do módulo) a 9600 bps.
+    \item \textbf{O Problema da Rajada de Pacotes:} Como o transmissor emite mensagens a 50\,Hz (a cada 20\,ms), enviar repetidamente a ordem de tocar o mesmo áudio causaria interrupções milissegundo a milissegundo no reprodutor, gerando ruído ininteligível.
+    \item \textbf{Mecanismo de Filtro de Rajada (\texttt{tocar}):}
+    \begin{lstlisting}
+bool mesmoAudio = (pasta == ultimaPasta && arquivo == ultimoArquivo);
+if (mesmoAudio && (millis() - tempoUltimoAudio < INTERVALO_MIN_AUDIO)) return;
+    \end{lstlisting}
+    A reprodução da mesma faixa só é reenviada ao hardware após um intervalo mínimo de 800\,ms (\texttt{INTERVALO\_MIN\_AUDIO}), garantindo que frases como \textit{"Vire à direita"} ou \textit{"Obstáculo à frente"} sejam reproduzidas de maneira contínua e compreensível.
+    \item \textbf{Tratamento de Mensagens:}
+    \begin{itemize}
+        \item \texttt{MSG\_START}: Reseta as variáveis \texttt{ultimaPasta} e \texttt{ultimoArquivo} para zero, preparando o canal acústico para novas emissões.
+        \item \texttt{MSG\_DADOS} e \texttt{MSG\_STOP}: Invoca a função \texttt{tocar(data.pastaAudio, data.arquivoAudio)}. Se os valores forem nulos (zero), nenhum som é emitido.
+    \end{itemize}
+\end{itemize}
+
+\newpage
+% ==============================================================================
+% SEÇÃO 3: FLUXO DE DADOS E INTERAÇÕES ENTRE OS ARQUIVOS
+% ==============================================================================
+\section{Fluxo de Dados e Interações entre Arquivos e Nós}
+
+A integração dos arquivos obedece a duas dimensões fundamentais:
+\begin{enumerate}
+    \item \textbf{Dimensão de Compilação (Estrutural):} Como os arquivos são incluídos e mesclados em tempo de compilação dependendo da placa-alvo.
+    \item \textbf{Dimensão de Execução (Dinâmica):} Como as mensagens trafegam pelo ar, como os eventos assíncronos disparam callbacks e como as máquinas de estado reagem a falhas.
+\end{enumerate}
+
+\subsection{Árvore de Dependências e Compilação Condicional}
+A Figura~\ref{fig:arvore_inclusoes} demonstra a hierarquia de inclusão dos arquivos de cabeçalho e implementação no processo de compilação.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[
+        fileBox/.style={rectangle, rounded corners=4pt, draw=primaryDark, fill=white, line width=1pt, minimum width=2.8cm, minimum height=0.9cm, align=center, font=\footnotesize\ttfamily},
+        configBox/.style={rectangle, rounded corners=4pt, draw=accentOrange, fill=accentOrange!15, line width=1.2pt, minimum width=3cm, minimum height=1cm, align=center, font=\bfseries\small\ttfamily},
+        messageBox/.style={rectangle, rounded corners=4pt, draw=primaryBlue, fill=primaryBlue!15, line width=1.2pt, minimum width=3cm, minimum height=1cm, align=center, font=\bfseries\small\ttfamily},
+        inoBox/.style={rectangle, rounded corners=6pt, draw=accentGreen, fill=accentGreen!20, line width=1.5pt, minimum width=3.4cm, minimum height=1.1cm, align=center, font=\bfseries\small\ttfamily},
+        depArrow/.style={->, >=Stealth, line width=1pt, color=gray!80}
+    ]
+        % Nó Central
+        \node[inoBox] (ino) {Hapticcomm.ino};
+
+        % Config e Message
+        \node[configBox, above left=1.2cm and 1cm of ino] (config) {Config.h};
+        \node[messageBox, above right=1.2cm and 1cm of ino] (message) {Message.h};
+        \node[fileBox, above=1cm of message] (audios) {Audios.h};
+
+        % Camada Comms
+        \node[fileBox, below=1.2cm of ino] (commsH) {Comms.h};
+        \node[fileBox, below=0.8cm of commsH] (commsCpp) {Comms.cpp};
+
+        % Módulos de Função
+        \node[fileBox, left=2.2cm of ino] (transmH) {Transmissor.h};
+        \node[fileBox, left=1cm of transmH] (transmCpp) {Transmissor.cpp};
+
+        \node[fileBox, right=2.2cm of ino] (recH) {Receptor.h};
+        \node[fileBox, right=1cm of recH] (recCpp) {Receptor.cpp};
+
+        \node[fileBox, right=2.2cm of commsH] (espAudH) {Espaudio.h};
+        \node[fileBox, right=1cm of espAudH] (espAudCpp) {Espaudio.cpp};
+
+        % Ligações
+        \draw[depArrow] (message) -- (audios);
+        \draw[depArrow] (ino) -- (config);
+        \draw[depArrow] (ino) -- (commsH);
+        \draw[depArrow] (ino) -- (transmH);
+        \draw[depArrow] (ino) -- (recH);
+
+        \draw[depArrow] (commsCpp) -- (commsH);
+        \draw[depArrow] (commsCpp) -- (message);
+        \draw[depArrow] (commsCpp) -- (config);
+
+        \draw[depArrow] (transmCpp) -- (transmH);
+        \draw[depArrow] (transmCpp) -- (message);
+        \draw[depArrow] (transmCpp) -- (config);
+
+        \draw[depArrow] (recCpp) -- (recH);
+        \draw[depArrow] (recCpp) -- (message);
+        \draw[depArrow] (recCpp) -- (commsH);
+
+        \draw[depArrow] (espAudCpp) -- (espAudH);
+        \draw[depArrow] (espAudCpp) -- (message);
+        \draw[depArrow] (espAudCpp) -- (commsH);
+
+    \end{tikzpicture}%
+    }
+    \caption{Grafo de dependências e inclusões entre os arquivos do projeto Rede Bicicleta Semi-Autônoma.}
+    \label{fig:arvore_inclusoes}
+\end{figure}
+
+\subsection{Fluxo de Execução Normal e Handshake Periódico}
+Durante o funcionamento nominal sem falhas, o sistema opera sob regime contínuo de broadcast e confirmação por janela temporal.
+\begin{enumerate}
+    \item \textbf{Fase de Inicialização (\texttt{setup}):} O transmissor executa \texttt{enviarStart()}, disparando um pacote com \texttt{tipoMensagem = MSG\_START}. Todos os receptores que recebem este pacote resetam seus estados de alarme e preparam seus buffers.
+    \item \textbf{Fase de Operação Normal (Ciclo de 20\,ms):} A cada 20\,ms, o mestre monta uma mensagem \texttt{MSG\_DADOS}, preenche as intensidades de PWM para cada lado e o código do áudio que deve ser executado no momento, e envia para o endereço de broadcast (\texttt{FF:FF:FF:FF:FF:FF}).
+    \item \textbf{Recepção e Processamento Local:}
+    \begin{itemize}
+        \item O \textbf{Receptor Direito} filtra \texttt{intensidadeDireita} e atualiza o ciclo de trabalho do pino 18.
+        \item O \textbf{Receptor Esquerdo} filtra \texttt{intensidadeEsquerda} e atualiza seu respectivo pino 18.
+        \item A \textbf{ESP de Áudio} decodifica \texttt{pastaAudio} e \texttt{arquivoAudio}, acionando o DFPlayer apenas se os índices forem válidos e o tempo decorrido desde o último áudio idêntico superar 800\,ms.
+    \end{itemize}
+    \item \textbf{Auditoria de Integridade (ACK):} Os receptores táteis mantêm um contador. Ao acumularem 5 pacotes recebidos, despacham um frame unicast de confirmação (\texttt{"ACK R"} ou \texttt{"ACK L"}). O mestre recebe essas respostas e marca as flags \texttt{ackRecebidoR} e \texttt{ackRecebidoL}.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[
+        node distance=1.5cm,
+        font=\small,
+        line width=1pt
+    ]
+        % Linhas de vida
+        \node (M) at (0,0) {\textbf{Transmissor (Mestre)}};
+        \node (R) at (5,0) {\textbf{Receptor Direito (R)}};
+        \node (L) at (10,0) {\textbf{Receptor Esquerdo (L)}};
+        \node (A) at (14,0) {\textbf{ESP Áudio}};
+
+        \draw[dashed, color=gray] (M) -- ++(0,-7.5);
+        \draw[dashed, color=gray] (R) -- ++(0,-7.5);
+        \draw[dashed, color=gray] (L) -- ++(0,-7.5);
+        \draw[dashed, color=gray] (A) -- ++(0,-7.5);
+
+        % Passos temporais
+        \draw[->, primaryBlue] (0,-1.0) -- node[above, font=\scriptsize] {Broadcast: MSG\_START} (14,-1.0);
+        \node[font=\tiny\color{gray}, anchor=west] at (14.2,-1.0) {Reset de Estados};
+
+        \draw[->, primaryBlue] (0,-2.0) -- node[above, font=\scriptsize] {Broadcast: MSG\_DADOS (Pacote 1)} (14,-2.0);
+        \draw[->, primaryBlue] (0,-2.6) -- node[above, font=\scriptsize] {Broadcast: MSG\_DADOS (Pacote 2)} (14,-2.6);
+        \draw[->, primaryBlue] (0,-3.2) -- node[above, font=\scriptsize] {Broadcast: MSG\_DADOS (Pacotes 3 e 4)} (14,-3.2);
+        \draw[->, primaryBlue] (0,-3.8) -- node[above, font=\scriptsize] {Broadcast: MSG\_DADOS (Pacote 5)} (14,-3.8);
+
+        % Respostas de ACK
+        \draw[->, accentRed] (5,-4.6) -- node[above, font=\scriptsize] {Unicast: ACK R} (0,-4.6);
+        \draw[->, accentRed] (10,-5.2) -- node[above, font=\scriptsize] {Unicast: ACK L} (0,-5.2);
+
+        \node[draw=accentGreen, fill=accentGreen!10, rounded corners=3pt, font=\scriptsize, align=center] at (0,-6.2) {
+            $\Delta t < 300$\,ms\\
+            ACKs recebidos com sucesso\\
+            Link íntegro $\rightarrow$ Continua operação
+        };
+
+    \end{tikzpicture}%
+    }
+    \caption{Diagrama de sequência da operação normal com transmissão periódica e confirmações por janela.}
+    \label{fig:seq_normal}
+\end{figure}
+
+\subsection{Máquina de Estados de Falha e Comportamento Fail-Safe}
+A segurança de um usuário deficiente visual em deslocamento rápido exige uma reação determinística quando um enlace sem fio é interrompido. A Figura~\ref{fig:maquina_estados} ilustra a máquina de estados implementada no nó transmissor e sua correspondência nos nós receptores.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=3cm,
+        state/.style={rectangle, rounded corners=8pt, draw=primaryDark, fill=primaryDark!10, line width=1.3pt, minimum width=4cm, minimum height=1.5cm, align=center, font=\small},
+        failState/.style={rectangle, rounded corners=8pt, draw=accentRed, fill=accentRed!15, line width=1.5pt, minimum width=4.5cm, minimum height=1.6cm, align=center, font=\small},
+        trans/.style={->, >=Stealth, line width=1.2pt}
+    ]
+        \node[state] (boot) {\textbf{ESTADO INICIAL}\\Energização\\Disparo de \texttt{MSG\_START}};
+        \node[state, right=3.5cm of boot] (normal) {\textbf{ESTADO NORMAL}\\Envio de \texttt{MSG\_DADOS} (50\,Hz)\\Auditoria a cada 5 pacotes};
+        \node[failState, below=2.5cm of normal] (stop) {\textbf{ESTADO DE STOP (EMERGÊNCIA)}\\Envio contínuo de \texttt{MSG\_STOP}\\$\bullet$ Vibração em pulso (250\,ms)\\$\bullet$ Áudio de perda de conexão\\$\bullet$ LED piscando a 2.5\,Hz};
+
+        \draw[trans] (boot) -- node[above, font=\footnotesize] {Rede OK} (normal);
+        
+        \draw[trans, accentRed] (normal.south) -- node[right, font=\footnotesize, align=left] {
+            $\Delta t_{\text{envio}} > 300$\,ms\\
+            Sem ACK R ou sem ACK L\\
+            \textbf{Dispara Fail-Safe}
+        } (stop.north);
+
+        \draw[trans, accentGreen] (stop.west) to[bend left=30] node[left, font=\footnotesize, align=right] {
+            Ambos os ACKs\\
+            detectados novamente\\
+            Reenvia \texttt{MSG\_START}
+        } (normal.west);
+
+    \end{tikzpicture}
+    \caption{Máquina de estados finitos do nó transmissor mestre com transições de proteção.}
+    \label{fig:maquina_estados}
+\end{figure}
+
+\subsubsection{Cenário de Falha Unilateral ou Bilateral}
+Quando o temporizador \texttt{millis() - tempoUltimoEnvio > TIMEOUT\_ACK} expira sem que as variáveis \texttt{ackRecebidoR} ou \texttt{ackRecebidoL} tenham sido validadas, a lógica em \texttt{Transmissor.cpp} ativa a rotina de contenção:
+\begin{enumerate}
+    \item Identifica se a falha é exclusiva da manopla direita (\texttt{falhaR}), exclusiva da manopla esquerda (\texttt{falhaL}) ou mútua (\texttt{falhaR \&\& falhaL}).
+    \item Seleciona o áudio correspondente na tabela:
+    \begin{itemize}
+        \item \texttt{AUDIO\_PERDA\_DIREITA} (Pasta 1, Arquivo 1): Informa ao usuário que a manopla direita perdeu sinal.
+        \item \texttt{AUDIO\_PERDA\_ESQUERDA} (Pasta 1, Arquivo 2): Informa falha na manopla esquerda.
+        \item \texttt{AUDIO\_PERDA\_AMBOS} (Pasta 1, Arquivo 3): Informa falha geral de conexão.
+    \end{itemize}
+    \item Comuta as variáveis de transmissão para \texttt{tipoMensagem = MSG\_STOP} e intensidades em 200.
+    \item Nos receptores táteis que ainda estiverem ao alcance, a chegada do comando \texttt{MSG\_STOP} aciona a rotina interna \texttt{modoPulso = true}. O \texttt{receptorLoop()} passa a chavear o motor de vibração a cada 250\,ms (2\,Hz), criando um aviso tátil inconfundível de alerta para que o ciclista pare a bicicleta imediatamente.
+    \item Caso a conexão se restabeleça, o transmissor detecta a volta dos ACKs, reseta os sinalizadores de erro e retransmite \texttt{MSG\_START}, restaurando a operação regular de condução de forma suave.
+\end{enumerate}
+
+\newpage
+% ==============================================================================
+% SEÇÃO 4: MATRIZ DE CONFIGURAÇÕES E RESUMO COMPARATIVO
+% ==============================================================================
+\section{Matriz de Configuração e Especificações Técnicas}
+
+A Tabela~\ref{tab:resumo_modos} consolida as diferenças operacionais de cada nó da bicicleta com base nas macros ativadas em \texttt{Config.h}.
+
+\begin{table}[H]
+    \centering
+    \caption{Matriz comparativa de funções, hardware e comportamento dos nós}
+    \label{tab:resumo_modos}
+    \small
+    \begin{tabularx}{\textwidth}{p{2.6cm}p{3.2cm}p{3.2cm}X}
+        \toprule
+        \textbf{Nó / Macro} & \textbf{Pinos de I/O} & \textbf{Mensagens Emitidas} & \textbf{Comportamento em Recepção} \\
+        \midrule
+        \textbf{Transmissor} \newline (\texttt{MODO\_TRANSMISSOR}) & 
+        Pino 2 (LED status) \newline USB-Serial (debug/host) & 
+        Broadcast: \newline
+        $\bullet$ \texttt{MSG\_START} \newline
+        $\bullet$ \texttt{MSG\_DADOS} \newline
+        $\bullet$ \texttt{MSG\_STOP} & 
+        Recebe unicast \texttt{"ACK R"} e \texttt{"ACK L"}. Gerencia timeout de 300\,ms e chaveamento de estados de falha. \\
+        \addlinespace
+        \textbf{Receptor Direito} \newline (\texttt{MODO\_RECEPTOR\_DIREITO}) & 
+        Pino 18 (PWM Motor Direito) & 
+        Unicast: \newline
+        $\bullet$ \texttt{"ACK R"} (a cada 5 pacotes) & 
+        Filtra \texttt{intensidadeDireita}. Se \texttt{MSG\_DADOS}, aciona PWM direto. Se \texttt{MSG\_STOP}, pulsa motor a cada 250\,ms. \\
+        \addlinespace
+        \textbf{Receptor Esquerdo} \newline (\texttt{MODO\_RECEPTOR\_ESQUERDO}) & 
+        Pino 18 (PWM Motor Esquerdo) & 
+        Unicast: \newline
+        $\bullet$ \texttt{"ACK L"} (a cada 5 pacotes) & 
+        Filtra \texttt{intensidadeEsquerda}. Se \texttt{MSG\_DADOS}, aciona PWM direto. Se \texttt{MSG\_STOP}, pulsa motor a cada 250\,ms. \\
+        \addlinespace
+        \textbf{ESP Áudio} \newline (\texttt{MODO\_ESP\_AUDIO}) & 
+        Pino 16 (RX2 ESP) \newline
+        Pino 17 (TX2 ESP) & 
+        Nenhuma (nó passivo de escuta) & 
+        Decodifica \texttt{pastaAudio} e \texttt{arquivoAudio}. Aplica filtro de repetição de 800\,ms e comanda o DFPlayer Mini via UART. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Parâmetros Temporais e de Desempenho}
+Os parâmetros temporais da rede foram afinados experimentalmente para assegurar tempo de resposta compatível com a dinâmica veicular de uma bicicleta:
+\begin{itemize}
+    \item \textbf{Frequência de Atualização do Mestre:} 50\,Hz (período de 20\,ms).
+    \item \textbf{Janela de Confirmação (ACK):} A cada 5 pacotes recebidos (100\,ms de intervalo nominal).
+    \item \textbf{Tempo Limite para Detecção de Queda de Link (\textit{Timeout}):} 300\,ms (equivalente à perda consecutiva de 3 janelas de confirmação, mitigando falsos positivos decorrentes de ruído passageiro).
+    \item \textbf{Frequência de Pulso no Estado de Parada:} 2\,Hz (250\,ms ligado, 250\,ms desligado).
+    \item \textbf{Filtro Anti-Retrigger de Mensagens Vocais:} 800\,ms.
+\end{itemize}
+
+\newpage
+% ==============================================================================
+% SEÇÃO 5: CONSIDERAÇÕES DE ENGENHARIA E MELHORIAS FUTURAS
+% ==============================================================================
+\section{Considerações de Engenharia e Recomendações}
+
+A análise aprofundada dos arquivos da pasta \texttt{Hapticcomm} demonstra que a arquitetura foi desenhada com alto grau de maturidade, priorizando a segurança física do usuário deficiente visual através de redundância de canais (vibração + voz) e verificação contínua de integridade de enlace.
+
+Com base nos princípios de engenharia de software embarcado e segurança funcional, destacam-se algumas oportunidades de evolução técnica:
+\begin{enumerate}
+    \item \textbf{Inclusão de Checksum ou CRC no Payload:}
+    Atualmente, a estrutura \texttt{struct\_message} possui 5 bytes sem campo de integridade de aplicação. Embora o protocolo de rádio 802.11 e o ESP-NOW apliquem CRC-32 na camada de enlace (descartando quadros corrompidos em hardware), adicionar um contador de sequência (\textit{sequence counter}) ou byte de paridade no nível de aplicação permite aos receptores mensurar a taxa real de perda de pacotes (\textit{Packet Loss Rate}).
+    \item \textbf{Confirmação da ESP de Áudio:}
+    Atualmente, os nós que respondem com confirmação (ACK) são os receptores táteis direito e esquerdo. O nó de áudio atua em modo passivo. Caso a segurança exija garantir que o canal de voz também esteja operante, pode-se incluir uma confirmação periódica da ESP de áudio (\texttt{"ACK A"}), assegurando redundância auditiva total.
+    \item \textbf{Priorização de Mensagens Críticas no DFPlayer Mini:}
+    Em manobras urgentes (ex.: frenagem imediata por obstáculo súbito à frente), o comando de áudio pode precisar interromper um áudio descritivo longo que esteja em execução. Uma instrução explícita de \textit{Stop/Abort} antes da reprodução da faixa de emergência pode ser adicionada no módulo \texttt{Espaudio.cpp}.
+\end{enumerate}
+
+% ==============================================================================
+% SEÇÃO 6: CONCLUSÃO
+% ==============================================================================
+\section{Conclusão}
+
+O projeto \textbf{Rede Bicicleta Semi-Autônoma} provê a infraestrutura de comunicação essencial para a condução segura por ciclistas com deficiência visual. A arquitetura em rede local ad-hoc utilizando ESP-NOW supera as fragilidades e custos de cabeamento físico em guidão rotativo, mantendo latências na faixa de unidades de milissegundos.
+
+A segregação do código em 12 módulos interdependentes e altamente parametrizáveis permite a compilação de quatro perfis de nós a partir de uma base comum, facilitando manutenção e testes de bancada. O mecanismo de \textit{fail-safe} implementado assegura que qualquer descontinuidade no enlace de rádio seja imediatamente percebida pelo usuário através de vibração intermitente e avisos de voz específicos, garantindo os padrões de segurança necessários para uma tecnologia assistiva veicular de alto impacto social.
+
+\end{document}
